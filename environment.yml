@@ -4,6 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - ipykernel=6.29.5
+  - ipympl
   - ipython=8.12.2
   - jupyter=1.0.0
   - matplotlib=3.7.2
