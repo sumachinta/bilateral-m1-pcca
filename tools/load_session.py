@@ -124,13 +124,13 @@ def load_session(filepath):
     -------
     session : dict with keys:
         filepath, n_lh, n_rh,
-        frames, spikes_LH, spikes_RH,
+        frames, spikes,
         first_touch, piston_frames,
         touch_frames, whisker_angle, curvature, phase,
         run_speed,
         hits, misses, false_alarms, correct_rejs, licks,
         neuron_num, shank, depth, fsrs,
-        loc_lh_mask, loc_rh_mask   ← boolean masks into Location rows
+        loc_lh_mask, loc_rh_mask   ← boolean masks over all neurons (LH first, then RH)
     """
     mat = scipy.io.loadmat(filepath, simplify_cells=True)
 
@@ -165,8 +165,7 @@ def load_session(filepath):
         'frames'      : neural[:, 0].astype(int),   # camera frame number
         'absolute_frames': np.arange(len(neural)),  # unique, monotonic frame index across entire session
         'time'        : np.arange(len(neural)) * TIME_STEP,  # seconds per frame
-        'spikes_LH'   : neural[:, lh_idx],          # (n_frames, n_lh)
-        'spikes_RH'   : neural[:, rh_idx],          # (n_frames, n_rh)
+        'spikes'      : np.hstack([neural[:, lh_idx], neural[:, rh_idx]]),  # (n_frames, n_lh+n_rh); use loc_lh_mask/loc_rh_mask to split by hemisphere
 
         # ── Trial / stimulus (fixed columns across sessions) ───────────────
         'first_touch'   : expinfo[:, 1],            # binary: first touch frame
@@ -196,29 +195,3 @@ def load_session(filepath):
     return session
 
 
-# ── Quick usage example ───────────────────────────────────────────────────────
-if __name__ == '__main__':
-
-    # Step 1: always inspect a new session file first
-    inspect_session('P1.mat')
-
-    # Step 2: load into a clean dict for analysis
-    s = load_session('P1.mat')
-
-    print(f"LH neurons    : {s['n_lh']}")
-    print(f"RH neurons    : {s['n_rh']}")
-    print(f"spikes_LH     : {s['spikes_LH'].shape}")    # (F, N_L)
-    print(f"spikes_RH     : {s['spikes_RH'].shape}")    # (F, N_R)
-    print(f"LH depth range: {s['depth'][s['loc_lh_mask']].min():.0f}–"
-          f"{s['depth'][s['loc_lh_mask']].max():.0f} µm")
-    print(f"RH depth range: {s['depth'][s['loc_rh_mask']].min():.0f}–"
-          f"{s['depth'][s['loc_rh_mask']].max():.0f} µm")
-
-    # Load all sessions — all mappings handled automatically per session
-    # P*.mat = bilateral, U*.mat = unilateral (confirmed naming convention)
-    import glob, os
-    all_files = sorted(glob.glob('*.mat'))
-    for f in all_files:
-        group = 'bilateral' if os.path.basename(f).startswith('P') else 'unilateral'
-        s = load_session(f)
-        print(f"{f}  [{group}]  LH: {s['n_lh']} neurons, RH: {s['n_rh']} neurons")
