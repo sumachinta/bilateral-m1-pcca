@@ -4,3 +4,5 @@ __pycache__/*
 .DS_Store
 data/
 session_data_reference.md
+results/
+figures/
