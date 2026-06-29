@@ -16,11 +16,11 @@ def plot_trial_variable(session_data, trial_start_indices, var_name='run_speed',
     var_name : str, optional
         Variable to plot (e.g. 'hits', 'misses', 'run_speed').
     trial_idx : int, optional
-        Trial number (1-based indexing).
+        Trial number (0-based indexing).
     """
     
-    frame_start = trial_start_indices[trial_idx - 1]
-    frame_end = trial_start_indices[trial_idx] - 1
+    frame_start = trial_start_indices[trial_idx]
+    frame_end = trial_start_indices[trial_idx + 1] - 1 if trial_idx + 1 < len(trial_start_indices) else len(session_data['absolute_frames'])
 
     mask = (
         (session_data['absolute_frames'] >= frame_start)
@@ -76,7 +76,7 @@ def plot_session_metrics(metrics, summary, session_id=None):
                hemisphere structure the model found is real.
     """
     psv = metrics['psv']
-    fig = plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(7, 7))
     fig.suptitle(f"pCCA-FA metrics — session {session_id or ''}",
                  fontsize=14, fontweight='bold', y=0.98)
     gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.42, wspace=0.35)

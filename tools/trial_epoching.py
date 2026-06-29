@@ -30,7 +30,7 @@ def get_trial_outcomes(session_data, derived):
 
 PISTON_NAMES = ['rightC', 'rightD', 'leftC', 'leftD']
 
-def get_trial_stimuli(session_data, derived, threshold=0.5):
+def get_trial_stimuli(session_data, derived, threshold=0.1):
     trial_start_indices = derived.get('trial_start_indices')
     if trial_start_indices is None:
         trial_start_indices = get_trial_start_indices(session_data)

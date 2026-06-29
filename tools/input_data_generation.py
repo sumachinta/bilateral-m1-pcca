@@ -1,4 +1,4 @@
-from load_session import TIME_STEP
+from .load_session import TIME_STEP
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 
