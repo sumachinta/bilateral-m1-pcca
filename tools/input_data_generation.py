@@ -120,7 +120,7 @@ def prepare_session_for_pcca(session_data, derived,
     Parameters
     ----------
     session_data     : dict from load_session()
-    derived          : dict with trial_outcomes, trial_start_indices, etc.
+    derived          : dict with trial_outcome, trial_start_frames, etc.
     trial_indices    : (T,) int array — which trials to include (already filtered)
     window           : (start_s, end_s) tuple, seconds relative to stimulus onset
     lh_neuron_mask   : (N_L,) bool — from get_neuron_mask('LH')
@@ -142,7 +142,7 @@ def prepare_session_for_pcca(session_data, derived,
         'n_rh'              int       neurons kept in RH
     """
     # 1. grab per-trial metadata for the selected trials
-    all_outcomes   = np.array(derived['trial_outcomes'])
+    all_outcomes   = np.array(derived['trial_outcome'])
     outcome_labels = all_outcomes[trial_indices]
     stim_labels    = _make_stimulus_labels(outcome_labels)
 
@@ -150,7 +150,8 @@ def prepare_session_for_pcca(session_data, derived,
     lh_raw, rh_raw = build_spike_count_matrices(
         session_data,
         trial_indices    = trial_indices,
-        reference_frames = derived['stimulus_onset_frame'],   # align to stim, not trial start
+        # reference_frames = derived['trial_start_frames'] + 0.5,   # align to stim, not trial start
+        reference_frames = derived['trial_start_frames'],   # align to trial start
         window           = window,
         lh_neuron_mask   = lh_neuron_mask,
         rh_neuron_mask   = rh_neuron_mask,
