@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-def plot_trial_variable(session_data, trial_start_indices, var_name='run_speed', trial_idx=1, xlim=None, ylim=None):
+def plot_trial_variable(session_data, trial_start_frames, var_name='run_speed', trial_idx=1, xlim=None, ylim=None):
     """
     Plot a variable for a single trial.
 
@@ -11,16 +11,16 @@ def plot_trial_variable(session_data, trial_start_indices, var_name='run_speed',
         - 'absolute_frames'
         - 'time'
         - var_name
-    trial_start_indices : array-like
+    trial_start_frames : array-like
         Start frame of each trial.
     var_name : str, optional
         Variable to plot (e.g. 'hits', 'misses', 'run_speed').
     trial_idx : int, optional
         Trial number (0-based indexing).
     """
-    
-    frame_start = trial_start_indices[trial_idx]
-    frame_end = trial_start_indices[trial_idx + 1] - 1 if trial_idx + 1 < len(trial_start_indices) else len(session_data['absolute_frames'])
+
+    frame_start = trial_start_frames[trial_idx]
+    frame_end = trial_start_frames[trial_idx + 1] - 1 if trial_idx + 1 < len(trial_start_frames) else len(session_data['absolute_frames'])
 
     mask = (
         (session_data['absolute_frames'] >= frame_start)
