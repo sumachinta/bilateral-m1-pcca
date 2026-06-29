@@ -769,17 +769,28 @@ class pcca_fa:
         n1 = self.params['W_1'].shape[0]
         n2 = self.params['W_2'].shape[0]
 
-        # first, orthonormalize each loading matrix
-        W_1,_,_ = slin.svd(self.params['W_1'],full_matrices=False)
-        W_2,_,_ = slin.svd(self.params['W_2'],full_matrices=False)
-        L_1,_,_ = slin.svd(self.params['L_1'],full_matrices=False)
-        L_2,_,_ = slin.svd(self.params['L_2'],full_matrices=False)
+        # orthonormalize each loading matrix; skip SVD when a dimension is 0
+        # (LAPACK DGESDD cannot handle zero-column matrices)
+        if self.params['d'] > 0:
+            W_1,_,_ = slin.svd(self.params['W_1'],full_matrices=False)
+            W_2,_,_ = slin.svd(self.params['W_2'],full_matrices=False)
+            ls_W_1 = 1 - n1*W_1.var(axis=0,ddof=0)
+            ls_W_2 = 1 - n2*W_2.var(axis=0,ddof=0)
+        else:
+            ls_W_1 = np.array([])
+            ls_W_2 = np.array([])
 
-        # calculate loading similarity - following equation in Umakantha, Morina, Cowley, et al., 2021.
-        ls_W_1 = 1 - n1*W_1.var(axis=0,ddof=0)
-        ls_W_2 = 1 - n2*W_2.var(axis=0,ddof=0)
-        ls_L_1 = 1 - n1*L_1.var(axis=0,ddof=0)
-        ls_L_2 = 1 - n2*L_2.var(axis=0,ddof=0)
+        if self.params['d1'] > 0:
+            L_1,_,_ = slin.svd(self.params['L_1'],full_matrices=False)
+            ls_L_1 = 1 - n1*L_1.var(axis=0,ddof=0)
+        else:
+            ls_L_1 = np.array([])
+
+        if self.params['d2'] > 0:
+            L_2,_,_ = slin.svd(self.params['L_2'],full_matrices=False)
+            ls_L_2 = 1 - n2*L_2.var(axis=0,ddof=0)
+        else:
+            ls_L_2 = np.array([])
 
         ls = {
             'ls_W_1':ls_W_1, # across-area loading similarity for area 1, involves W_1
@@ -870,30 +881,24 @@ class pcca_fa:
 
         W_1,W_2,L_1,L_2 = self.get_loading_matrices()
 
-        # for across-area
-        shared = W_1.dot(W_1.T)
-        s = slin.svdvals(shared)
-        pr_W_1 = np.square(s.sum()) / np.square(s).sum()
+        def _part_ratio(M):
+            s = slin.svdvals(M.dot(M.T))
+            denom = np.square(s).sum()
+            return float(np.square(s.sum()) / denom) if denom > 0 else 0.0
 
-        shared = W_2.dot(W_2.T)
-        s = slin.svdvals(shared)
-        pr_W_2 = np.square(s.sum()) / np.square(s).sum()
+        # for across-area
+        pr_W_1 = _part_ratio(W_1)
+        pr_W_2 = _part_ratio(W_2)
 
         # overall
         W_total = np.concatenate((W_1,W_2),axis=0)
-        shared = W_total.dot(W_total.T)
-        s = slin.svdvals(shared)
-        pr_W_total = np.square(s.sum()) / np.square(s).sum()
+        pr_W_total = _part_ratio(W_total)
 
         # for within area 1
-        shared = L_1.dot(L_1.T)
-        s = slin.svdvals(shared)
-        pr_L_1 = np.square(s.sum()) / np.square(s).sum()
+        pr_L_1 = _part_ratio(L_1)
 
         # for within area 2
-        shared = L_2.dot(L_2.T)
-        s = slin.svdvals(shared)
-        pr_L_2 = np.square(s.sum()) / np.square(s).sum()
+        pr_L_2 = _part_ratio(L_2)
 
         pr = {
             'pr_W_1':pr_W_1, # part ratio for across-area loading matrix in area 1, involves W_1
