@@ -212,7 +212,7 @@ def plot_session_metrics(metrics, summary, session_id=None):
                    loc='left', fontweight='bold')
     ax_d.spines[['top', 'right']].set_visible(False)
 
-    plt.savefig(f'session_{session_id or "metrics"}.png',
+    plt.savefig(f'figures/session_{session_id or "metrics"}.png',
                 dpi=150, bbox_inches='tight')
     plt.show()
     return fig

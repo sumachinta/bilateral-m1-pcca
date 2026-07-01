@@ -8,7 +8,7 @@ from pathlib import Path
 RESULTS_DIR = Path('results')
 
 
-def fit_session_pcca(bundle, d_max=6, n_folds=10, rand_seed=42, verbose=True):
+def fit_session_pcca(bundle, d_max=10, n_folds=10, rand_seed=42, verbose=True):
     """
     Runs pCCA-FA on one session's preprocessed spike count matrices.
 

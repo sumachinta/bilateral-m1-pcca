@@ -4,8 +4,15 @@ def get_session_trial_start_frames(session_data):
     return np.where(session_data['frames'] == 1)[0]
 
 
-def get_session_touch_onset_frames(session_data):
-    return np.where(session_data['first_touch'] == 1)[0]
+# def get_session_touch_onset_frames(session_data):
+#     return np.where(session_data['first_touch'] == 1)[0]
+## New version because some trials have no touch events, so we want to return NaN for those trials instead of skipping them. 
+def get_session_touch_onset_frames(session_data, derived):
+    trial_start_indices = derived.get('trial_start_frames')
+    if trial_start_indices is None:
+        trial_start_indices = get_session_trial_start_frames(session_data)
+    return _first_event_per_trial(session_data['first_touch'], trial_start_indices)
+
 
 
 def get_trial_outcome(session_data, derived):
@@ -82,7 +89,7 @@ def get_trial_first_lick_frames(session_data, derived):
 def compute_derived(session_data):
     derived = {}
     derived['trial_start_frames'] = get_session_trial_start_frames(session_data)
-    derived['touch_onset_frames'] = get_session_touch_onset_frames(session_data)
+    derived['touch_onset_frames'] = get_session_touch_onset_frames(session_data, derived)
     derived['trial_outcome'] = get_trial_outcome(session_data, derived)
     derived['trial_stimulus'] = get_trial_stimulus(session_data, derived)
     derived['trial_first_lick_frames'] = get_trial_first_lick_frames(session_data, derived)
