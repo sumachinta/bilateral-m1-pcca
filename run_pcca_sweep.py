@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 
 from tools.load_session import load_session, TIME_STEP
 from tools.trial_epoching import compute_derived
-from tools.input_data_generation import get_neuron_mask, prepare_session_for_pcca
+from tools.input_data_generation import prepare_session_for_pcca
 from tools.run_save_model import fit_session_pcca, extract_session_metrics, save_session_results
 from tools.plotting_fncs import plot_session_metrics
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-SESSION_IDS = ['P6', 'P11', 'P12', 'P14']#['P5', 'P6', 'P11', 'P12', 'P14', 'U1', 'U2', 'U3', 'U5', 'U7', 'U8']          # 'P1', 'P2', 'P3', 'P4', 
+SESSION_IDS = ['U1', 'U8']#['P5', 'P6', 'P11', 'P12', 'P14', 'U1', 'U2', 'U3', 'U5', 'U7', 'U8']          # 'P1', 'P2', 'P3', 'P4', 
 WINDOWS     = [(0.0, 1.0)]#, (0.0, 0.5), (0.5, 1.0)]
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -44,26 +44,24 @@ for session_id in SESSION_IDS:
         )[0]
         print(f'Filtered trials: {len(filtered_trial_indices)}')
 
-        lh_neuron_mask = get_neuron_mask(session_data, hemisphere='LH', fsrs=[1, -1], min_rate_hz=5.0)
-        rh_neuron_mask = get_neuron_mask(session_data, hemisphere='RH', fsrs=[1, -1], min_rate_hz=5.0)
+        neuron_filter_params = {'fsrs': [1, -1], 'min_rate_hz': 5.0}
 
         for window in WINDOWS:
             win_label = f'{window[0]:.1f}-{window[1]:.1f}'
             sid       = f'{session_id}_w{win_label}'
             print(f'\n--- Window {win_label} s ---')
 
-            bundle = prepare_session_for_pcca(
-                session_data   = session_data,
-                derived        = derived,
-                trial_indices  = filtered_trial_indices,
-                window         = window,
-                lh_neuron_mask = lh_neuron_mask,
-                rh_neuron_mask = rh_neuron_mask,
+            pcca_input_data = prepare_session_for_pcca(
+                session_data         = session_data,
+                derived              = derived,
+                trial_indices        = filtered_trial_indices,
+                window               = window,
+                neuron_filter_params = neuron_filter_params,
             )
 
-            model, cv_results = fit_session_pcca(bundle, d_max=6, n_folds=10, rand_seed=42)
+            model, cv_results = fit_session_pcca(pcca_input_data, d_max=6, n_folds=10, rand_seed=42)
             metrics, summary  = extract_session_metrics(model, session_id=sid)
-            save_session_results(sid, model, cv_results, metrics, summary)
+            save_session_results(sid, model, cv_results, metrics, summary, pcca_input_data)
 
             fig = plot_session_metrics(metrics, summary, session_id=sid)
             plt.close(fig)

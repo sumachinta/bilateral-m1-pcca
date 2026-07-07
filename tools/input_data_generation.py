@@ -107,15 +107,14 @@ def _make_stimulus_labels(trial_outcomes):
 def prepare_session_for_pcca(session_data, derived,
                               trial_indices,
                               window,
-                              lh_neuron_mask,
-                              rh_neuron_mask,
+                              neuron_filter_params,
                               boxcar_width=BOXCAR_WIDTH,
                               time_step=TIME_STEP):
     """
 
-    Builds raw spike count matrices, attaches trial metadata, applies
-    condition-mean subtraction and boxcar detrending,
-    and returns everything in one self-contained bundle.
+    Builds neuron masks, raw spike count matrices, attaches trial metadata,
+    applies condition-mean subtraction and boxcar detrending, and returns
+    everything in one self-contained pcca_input_data dict.
 
     Parameters
     ----------
@@ -123,15 +122,16 @@ def prepare_session_for_pcca(session_data, derived,
     derived          : dict with trial_outcome, trial_start_frames, etc.
     trial_indices    : (T,) int array — which trials to include (already filtered)
     window           : (start_s, end_s) tuple, seconds relative to stimulus onset
-    lh_neuron_mask   : (N_L,) bool — from get_neuron_mask('LH')
-    rh_neuron_mask   : (N_R,) bool — from get_neuron_mask('RH')
+    neuron_filter_params : dict — kwargs forwarded to get_neuron_mask() for both
+                     hemispheres (e.g. {'fsrs': [1, -1], 'min_rate_hz': 5.0}).
+                     Also saved as-is in the returned dict for provenance.
     boxcar_width     : int, trials (default 25)
 
     Returns
     -------
-    bundle : dict with keys
-        'lh_raw'            (T, N_L)  raw spike counts
-        'rh_raw'            (T, N_R)  raw spike counts
+    pcca_input_data : dict with keys
+        'lh_raw'             (T, N_L)  raw spike counts
+        'rh_raw'              (T, N_R)  raw spike counts
         'lh'                (T, N_L)  preprocessed (mean-sub + detrended)
         'rh'                (T, N_R)  preprocessed
         'trial_indices'     (T,)      which trials were used
@@ -140,13 +140,22 @@ def prepare_session_for_pcca(session_data, derived,
         'window'            tuple     the window used
         'n_lh'              int       neurons kept in LH
         'n_rh'              int       neurons kept in RH
+        'lh_neuron_mask'    (N_L_total,) bool — which LH neurons were kept
+        'rh_neuron_mask'    (N_R_total,) bool — which RH neurons were kept
+        'neuron_filter_params' dict   — thresholds used to build the masks
     """
-    # 1. grab per-trial metadata for the selected trials
+    # 1. build neuron masks from a single set of filter thresholds
+    lh_neuron_mask = get_neuron_mask(session_data, hemisphere='LH', time_step=time_step,
+                                      **neuron_filter_params)
+    rh_neuron_mask = get_neuron_mask(session_data, hemisphere='RH', time_step=time_step,
+                                      **neuron_filter_params)
+
+    # 2. grab per-trial metadata for the selected trials
     all_outcomes   = np.array(derived['trial_outcome'])
     outcome_labels = all_outcomes[trial_indices]
     stim_labels    = _make_stimulus_labels(outcome_labels)
 
-    # 2. build raw spike count matrices
+    # 3. build raw spike count matrices
     lh_raw, rh_raw = build_spike_count_matrices(
         session_data,
         trial_indices    = trial_indices,
@@ -158,23 +167,26 @@ def prepare_session_for_pcca(session_data, derived,
         time_step        = time_step,
     )
 
-    # 3. condition mean subtraction  (uses stimulus identity, not outcome)
+    # 4. condition mean subtraction  (uses stimulus identity, not outcome)
     lh_resid = _subtract_condition_means(lh_raw, stim_labels)
     rh_resid = _subtract_condition_means(rh_raw, stim_labels)
 
-    # 4. slow drift removal
+    # 5. slow drift removal
     lh_pre = _remove_slow_drift(lh_resid, boxcar_width)
     rh_pre = _remove_slow_drift(rh_resid, boxcar_width)
 
     return {
-        'lh_raw'          : lh_raw,
-        'rh_raw'          : rh_raw,
-        'lh'              : lh_pre,
-        'rh'              : rh_pre,
-        'trial_indices'   : trial_indices,
-        'outcome_labels'  : outcome_labels,
-        'stimulus_labels' : stim_labels,
-        'window'          : window,
-        'n_lh'            : int(lh_neuron_mask.sum()),
-        'n_rh'            : int(rh_neuron_mask.sum()),
+        'lh_raw'               : lh_raw,
+        'rh_raw'               : rh_raw,
+        'lh'                   : lh_pre,
+        'rh'                   : rh_pre,
+        'trial_indices'        : trial_indices,
+        'outcome_labels'       : outcome_labels,
+        'stimulus_labels'      : stim_labels,
+        'window'               : window,
+        'n_lh'                 : int(lh_neuron_mask.sum()),
+        'n_rh'                 : int(rh_neuron_mask.sum()),
+        'lh_neuron_mask'       : lh_neuron_mask,
+        'rh_neuron_mask'       : rh_neuron_mask,
+        'neuron_filter_params' : neuron_filter_params,
     }

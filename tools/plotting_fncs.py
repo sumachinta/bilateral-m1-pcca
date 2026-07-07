@@ -872,3 +872,128 @@ def plot_psv_scatter(window_suffix, results_dir='results'):
     )
 
     return fig
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+import joblib
+
+
+def plot_neuron_counts(window_suffix, results_dir='results'):
+    """
+    Load all sessions matching window_suffix and plot LH vs RH neuron
+    counts as a scatter — one point per session, P and U in separate panels.
+
+    Neuron counts are extracted from the shape of W_1 (n_LH) and W_2 (n_RH)
+    in model_params.
+
+    Parameters
+    ----------
+    window_suffix : str   e.g. '_w0.0-1.0'
+    results_dir   : str or Path
+
+    Returns
+    -------
+    fig : matplotlib Figure
+
+    Example
+    -------
+    fig = plot_neuron_counts('_w0.0-1.0')
+    plt.show()
+    fig.savefig('neuron_counts.png', dpi=150, bbox_inches='tight')
+    """
+    teal  = '#0F6E56'   # unilateral (U)
+    coral = '#D85A30'   # bilateral  (P)
+
+    results_dir = Path(results_dir)
+    files = sorted(results_dir.glob(f'*{window_suffix}.joblib'))
+    if not files:
+        raise FileNotFoundError(
+            f"No files found matching '*{window_suffix}.joblib' in {results_dir}"
+        )
+
+    # ── load ─────────────────────────────────────────────────────────────────
+    groups = {
+        'P': {'n_lh': [], 'n_rh': [], 'ids': []},
+        'U': {'n_lh': [], 'n_rh': [], 'ids': []},
+    }
+
+    for f in files:
+        session_id = f.stem.replace(window_suffix, '')
+        group      = session_id[0].upper()
+        if group not in groups:
+            continue
+
+        payload    = joblib.load(f)
+        params     = payload['model_params']
+
+        # W_1 shape: (n_lh, d) → n_lh = rows of W_1
+        # W_2 shape: (n_rh, d) → n_rh = rows of W_2
+        n_lh = params['W_1'].shape[0]
+        n_rh = params['W_2'].shape[0]
+
+        groups[group]['n_lh'].append(n_lh)
+        groups[group]['n_rh'].append(n_rh)
+        groups[group]['ids'].append(session_id)
+
+    # ── shared axis limit ─────────────────────────────────────────────────────
+    all_n = [n for g in groups.values() for n in g['n_lh'] + g['n_rh']]
+    lim   = max(all_n) * 1.2 if all_n else 100
+
+    # ── figure: 1 row, 2 panels (P left, U right) ────────────────────────────
+    fig, (ax_p, ax_u) = plt.subplots(1, 2, figsize=(8, 4),
+                                      sharex=True, sharey=True)
+    fig.subplots_adjust(wspace=0.25)
+
+    panel_specs = [
+        (ax_p, 'P', coral, 'Bilateral (P)'),
+        (ax_u, 'U', teal,  'Unilateral (U)'),
+    ]
+
+    for ax, grp, color, title in panel_specs:
+        n_lh = np.array(groups[grp]['n_lh'])
+        n_rh = np.array(groups[grp]['n_rh'])
+        ids  = groups[grp]['ids']
+
+        if len(n_lh):
+            ax.scatter(n_lh, n_rh, s=65, color=color, alpha=0.85,
+                       edgecolors='white', linewidths=0.6, zorder=4)
+
+            for x, y, sid in zip(n_lh, n_rh, ids):
+                ax.text(x + lim * 0.02, y + lim * 0.02, sid,
+                        fontsize=7.5, color=color, va='bottom')
+
+        # y = x diagonal
+        ax.plot([0, lim], [0, lim], color='#888', linestyle='--',
+                linewidth=1, zorder=2)
+        ax.text(lim * 0.05, lim * 0.90, 'RH > LH',
+                fontsize=7.5, color='#555', style='italic')
+        ax.text(lim * 0.60, lim * 0.50, 'LH > RH',
+                fontsize=7.5, color='#555', style='italic')
+
+        ax.set_xlim(0, lim)
+        ax.set_ylim(0, lim)
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_title(title, fontsize=10, fontweight='bold', color=color)
+        ax.set_xlabel('LH neuron count', fontsize=9)
+        ax.set_ylabel('RH neuron count', fontsize=9)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.grid(linewidth=0.3, alpha=0.4, zorder=0)
+
+        # summary stats annotation
+        if len(n_lh):
+            ax.text(0.97, 0.08,
+                    f'LH: {np.mean(n_lh):.0f} ± {np.std(n_lh):.0f}\n'
+                    f'RH: {np.mean(n_rh):.0f} ± {np.std(n_rh):.0f}',
+                    transform=ax.transAxes, ha='right', va='bottom',
+                    fontsize=7.5, color=color,
+                    bbox=dict(fc='white', ec='none', alpha=0.7))
+
+    fig.suptitle(
+        f'Neuron counts per hemisphere  —  window: {window_suffix}',
+        fontsize=11, fontweight='bold',
+    )
+
+    return fig

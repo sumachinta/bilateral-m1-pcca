@@ -8,7 +8,7 @@ from pathlib import Path
 RESULTS_DIR = Path('results')
 
 
-def fit_session_pcca(bundle, d_max=10, n_folds=10, rand_seed=42, verbose=True):
+def fit_session_pcca(pcca_input_data, d_max=10, n_folds=10, rand_seed=42, verbose=True):
     """
     Runs pCCA-FA on one session's preprocessed spike count matrices.
 
@@ -19,7 +19,7 @@ def fit_session_pcca(bundle, d_max=10, n_folds=10, rand_seed=42, verbose=True):
 
     Parameters
     ----------
-    bundle   : dict returned by prepare_session_for_pcca()
+    pcca_input_data : dict returned by prepare_session_for_pcca()
     d_max    : int, maximum dimensionality to search (paper uses 15; 6 is
                sufficient for your trial count ~400)
     n_folds  : int, CV folds (paper uses 10)
@@ -31,8 +31,8 @@ def fit_session_pcca(bundle, d_max=10, n_folds=10, rand_seed=42, verbose=True):
     cv_results : dict from crossvalidate() — includes selected d, d1, d2,
                  per-fold log-likelihoods, and final LL
     """
-    X_1 = bundle['lh']   # (T, N_L) preprocessed
-    X_2 = bundle['rh']   # (T, N_R) preprocessed
+    X_1 = pcca_input_data['lh']   # (T, N_L) preprocessed
+    X_2 = pcca_input_data['rh']   # (T, N_R) preprocessed
 
     d_list = np.arange(0, d_max + 1, dtype=int)   # [0, 1, 2, ..., d_max]
 
@@ -107,25 +107,30 @@ def extract_session_metrics(model, session_id=None):
 
 
 def save_session_results(session_id, model, cv_results, metrics, summary,
-                          results_dir=RESULTS_DIR):
+                          pcca_input_data, results_dir=RESULTS_DIR):
     """
     Save everything needed to reproduce all figures and analyses
-    without re-running crossvalidate().
+    without re-running crossvalidate() or the trial-filtering/preprocessing
+    pipeline.
 
     Saves one .joblib file per session containing:
-        model_params  — the fit pCCA-FA parameters (W, L, psi, mu, d values)
-        cv_results    — the full CV grid search output (LLs per fold, selected dims)
-        metrics       — all computed metrics (psv, dshared, rho, etc.)
-        summary       — the extracted scalar summary for this session
+        model_params    — the fit pCCA-FA parameters (W, L, psi, mu, d values)
+        cv_results      — the full CV grid search output (LLs per fold, selected dims)
+        metrics         — all computed metrics (psv, dshared, rho, etc.)
+        summary         — the extracted scalar summary for this session
+        pcca_input_data — dict from prepare_session_for_pcca(): raw/preprocessed
+                          spike counts, trial_indices, outcome/stimulus labels,
+                          neuron masks, and the neuron-filter thresholds used
     """
     results_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
-        'session_id'  : session_id,
-        'model_params': model.get_params(),   # dict of numpy arrays — everything
-        'cv_results'  : cv_results,
-        'metrics'     : metrics,
-        'summary'     : summary,
+        'session_id'      : session_id,
+        'model_params'    : model.get_params(),   # dict of numpy arrays — everything
+        'cv_results'      : cv_results,
+        'metrics'         : metrics,
+        'summary'         : summary,
+        'pcca_input_data' : pcca_input_data,
     }
 
     path = results_dir / f'{session_id}.joblib'
@@ -137,13 +142,18 @@ def load_session_results(session_id, results_dir=RESULTS_DIR):
     """
     Load a saved session and reconstruct a usable pcca_fa model object.
 
-    Returns the same objects as fit_session_pcca + extract_session_metrics:
-        model, cv_results, metrics, summary
+    Returns the same objects as fit_session_pcca + extract_session_metrics,
+    plus the original pcca_input_data (raw/preprocessed spike counts, trial
+    metadata, neuron masks, neuron-filter thresholds) for posthoc analysis:
+        model, cv_results, metrics, summary, pcca_input_data
+
+    pcca_input_data will be None for older result files saved before this
+    field was added.
 
     The returned model is fully functional — you can call
     compute_psv(), estep(), get_loading_matrices(), etc. on it.
     """
-    path = results_dir / f'{session_id}.joblib'
+    path = results_dir / f'{session_id}_w0.0-1.0.joblib'
     if not path.exists():
         raise FileNotFoundError(f"No saved results for session '{session_id}' at {path}")
 
@@ -156,7 +166,8 @@ def load_session_results(session_id, results_dir=RESULTS_DIR):
     print(f"Loaded ← {path}  (d={model.params['d']}, "
           f"d1={model.params['d1']}, d2={model.params['d2']})")
 
-    return model, payload['cv_results'], payload['metrics'], payload['summary']
+    return (model, payload['cv_results'], payload['metrics'], payload['summary'],
+            payload.get('pcca_input_data'))
 
 
 def session_is_saved(session_id, results_dir=RESULTS_DIR):
