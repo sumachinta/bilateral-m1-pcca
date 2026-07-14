@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 def plot_trial_variable(session_data, trial_start_frames, var_name='run_speed', trial_idx=1, xlim=None, ylim=None):
     """
@@ -114,21 +115,27 @@ def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
     return ax
 
 
-def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, ax=None):
+def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sort_by=None, ax=None):
     """
     Neuron x (variable, comparison) heatmap of tuning effect_size, from
     tools.tuning_analysis.build_tuning_strength_table(). One column per
     variable/comparison pair (e.g. 'stimulus: bilateral_vs_unilateral',
     'outcome: hit_vs_miss', 'run_speed: all'). Cells with p_value below
-    significance_alpha are marked with a white star. Neurons (rows) are
-    sorted by their max effect_size, descending.
+    significance_alpha are marked with a white star.
 
     Parameters
     ----------
     tuning_df           : DataFrame from build_tuning_strength_table()
-    hemisphere          : str, optional — used only in the plot title
+    hemisphere           : str, optional — used only in the plot title
     significance_alpha  : float, p-value cutoff for the significance marker
-    ax                  : matplotlib Axes, optional — created if not given
+    sort_by              : None, or dict/Series mapping neuron name (e.g.
+                            'LH_neuron_7') -> a sort key. Neurons (rows) are
+                            sorted by this value, descending, and the value
+                            is appended to each row's label — e.g. pass each
+                            neuron's psv_W to sort by %shared variance
+                            instead. If None (default), sorted by each
+                            neuron's own max effect_size across all columns.
+    ax                    : matplotlib Axes, optional — created if not given
 
     Returns
     -------
@@ -140,7 +147,14 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, ax=
     effect_pivot = df.pivot(index='neuron', columns='column', values='effect_size')
     p_pivot      = df.pivot(index='neuron', columns='column', values='p_value')
 
-    order = effect_pivot.max(axis=1).sort_values(ascending=False).index
+    if sort_by is None:
+        order = effect_pivot.max(axis=1).sort_values(ascending=False).index
+        row_labels = list(order)
+    else:
+        sort_values = pd.Series(sort_by).reindex(effect_pivot.index)
+        order = sort_values.sort_values(ascending=False).index
+        row_labels = [f'{n}  ({sort_values[n]:.1f})' for n in order]
+
     effect_pivot = effect_pivot.loc[order]
     p_pivot      = p_pivot.loc[order]
 
@@ -153,7 +167,7 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, ax=
     ax.set_xticks(range(effect_pivot.shape[1]))
     ax.set_xticklabels(effect_pivot.columns, rotation=45, ha='right', fontsize=8)
     ax.set_yticks(range(effect_pivot.shape[0]))
-    ax.set_yticklabels(effect_pivot.index, fontsize=7)
+    ax.set_yticklabels(row_labels, fontsize=7)
 
     sig_rows, sig_cols = np.where(p_pivot.to_numpy() < significance_alpha)
     ax.scatter(sig_cols, sig_rows, marker='*', color='white', s=25, zorder=3)
