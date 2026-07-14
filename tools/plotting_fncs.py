@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
 def plot_trial_variable(session_data, trial_start_frames, var_name='run_speed', trial_idx=1, xlim=None, ylim=None):
     """
@@ -49,9 +50,71 @@ def plot_trial_variable(session_data, trial_start_frames, var_name='run_speed', 
     plt.show()
 
 
+def plot_neuron_by_category(df, neuron_col, category_col, categories=None, ax=None):
+    """
+    Jittered strip plot of one neuron's spike counts, grouped by a
+    categorical trial variable (e.g. 'stimulus', 'outcome', 'choice').
+
+    Parameters
+    ----------
+    df           : DataFrame from build_trial_variable_table(), one row per trial
+    neuron_col   : str, spike-count column name (e.g. 'LH_neuron_3')
+    category_col : str, categorical column name to group by
+    categories   : list, optional — which category values to plot, and in
+                   what order (default: all unique values, sorted)
+    ax           : matplotlib Axes, optional — created if not given
+
+    Returns
+    -------
+    ax : matplotlib Axes
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 3))
+
+    if categories is None:
+        categories = sorted(df[category_col].dropna().unique())
+
+    colors = plt.cm.Set1(np.linspace(0, 1, len(categories)))
+    for i, cat in enumerate(categories):
+        cat_data = df.loc[df[category_col] == cat, neuron_col]
+        x = np.random.normal(i, 0.04, size=len(cat_data))
+        ax.scatter(x, cat_data, alpha=0.5, s=50, color=colors[i], label=cat)
+
+    ax.set_xticks(range(len(categories)))
+    ax.set_xticklabels(categories, rotation=30, ha='right')
+    ax.set_ylabel('Spike count')
+    ax.set_title(neuron_col)
+    ax.legend(fontsize=7)
+    return ax
+
+
+def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
+    """
+    Scatter of one neuron's spike counts vs. a continuous behavioral
+    variable (e.g. 'run_speed', 'whisker_angle', 'curvature', 'lick_latency').
+
+    Parameters
+    ----------
+    df         : DataFrame from build_trial_variable_table(), one row per trial
+    neuron_col : str, spike-count column name (e.g. 'LH_neuron_3')
+    signal_col : str, continuous column name
+    ax         : matplotlib Axes, optional — created if not given
+
+    Returns
+    -------
+    ax : matplotlib Axes
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 3))
+
+    ax.scatter(df[signal_col], df[neuron_col], alpha=0.5, s=30, color='steelblue')
+    ax.set_xlabel(signal_col)
+    ax.set_ylabel('Spike count')
+    ax.set_title(neuron_col)
+    return ax
+
 
 import matplotlib.gridspec as gridspec
-import numpy as np
 
 
 def plot_session_metrics(metrics, summary, session_id=None):
