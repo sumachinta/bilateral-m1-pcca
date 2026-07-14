@@ -83,7 +83,10 @@ def build_trial_variable_table(session_id, metrics, pcca_input_data, session_dat
     derived           : dict from compute_derived(session_data)
     hemisphere        : 'LH' or 'RH'
     psv_component     : 'across' or 'within' (passed to get_high_psv_neuron_indices)
-    psv_threshold     : float, % shared variance cutoff
+    psv_threshold     : float, % shared variance cutoff. None includes every
+                         neuron in the hemisphere (no filtering) — useful for
+                         later comparing tuning strength between high-psv and
+                         low-psv neurons.
     extra_signals     : session_data keys to window-average via
                          build_windowed_variable_means (e.g. 'run_speed')
 
@@ -94,9 +97,13 @@ def build_trial_variable_table(session_id, metrics, pcca_input_data, session_dat
     metrics['psv']['psv_W_1'/'psv_W_2'/...] (so it can be traced back to its
     %sv value).
     """
-    hemi_key   = 'lh' if hemisphere == 'LH' else 'rh'
-    raw        = pcca_input_data[f'{hemi_key}_raw']
-    neuron_idx = get_high_psv_neuron_indices(metrics, hemisphere, psv_component, psv_threshold)
+    hemi_key = 'lh' if hemisphere == 'LH' else 'rh'
+    raw      = pcca_input_data[f'{hemi_key}_raw']
+
+    if psv_threshold is None:
+        neuron_idx = np.arange(raw.shape[1])
+    else:
+        neuron_idx = get_high_psv_neuron_indices(metrics, hemisphere, psv_component, psv_threshold)
 
     trial_indices    = pcca_input_data['trial_indices']
     window           = pcca_input_data['window']

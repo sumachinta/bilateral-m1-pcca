@@ -114,6 +114,103 @@ def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
     return ax
 
 
+def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, ax=None):
+    """
+    Neuron x (variable, comparison) heatmap of tuning effect_size, from
+    tools.tuning_analysis.build_tuning_strength_table(). One column per
+    variable/comparison pair (e.g. 'stimulus: bilateral_vs_unilateral',
+    'outcome: hit_vs_miss', 'run_speed: all'). Cells with p_value below
+    significance_alpha are marked with a white star. Neurons (rows) are
+    sorted by their max effect_size, descending.
+
+    Parameters
+    ----------
+    tuning_df           : DataFrame from build_tuning_strength_table()
+    hemisphere          : str, optional — used only in the plot title
+    significance_alpha  : float, p-value cutoff for the significance marker
+    ax                  : matplotlib Axes, optional — created if not given
+
+    Returns
+    -------
+    ax : matplotlib Axes
+    """
+    df = tuning_df.copy()
+    df['column'] = df['variable'] + ': ' + df['comparison']
+
+    effect_pivot = df.pivot(index='neuron', columns='column', values='effect_size')
+    p_pivot      = df.pivot(index='neuron', columns='column', values='p_value')
+
+    order = effect_pivot.max(axis=1).sort_values(ascending=False).index
+    effect_pivot = effect_pivot.loc[order]
+    p_pivot      = p_pivot.loc[order]
+
+    if ax is None:
+        fig_w = 1.3 * effect_pivot.shape[1] + 1.5
+        fig_h = max(3, 0.25 * effect_pivot.shape[0])
+        _, ax = plt.subplots(figsize=(fig_w, fig_h))
+
+    im = ax.imshow(effect_pivot.to_numpy(), aspect='auto', cmap='viridis', vmin=0, vmax=1)
+    ax.set_xticks(range(effect_pivot.shape[1]))
+    ax.set_xticklabels(effect_pivot.columns, rotation=45, ha='right', fontsize=8)
+    ax.set_yticks(range(effect_pivot.shape[0]))
+    ax.set_yticklabels(effect_pivot.index, fontsize=7)
+
+    sig_rows, sig_cols = np.where(p_pivot.to_numpy() < significance_alpha)
+    ax.scatter(sig_cols, sig_rows, marker='*', color='white', s=25, zorder=3)
+
+    title = 'Tuning strength (effect size)'
+    if hemisphere is not None:
+        title = f'{title} — {hemisphere}'
+    ax.set_title(title, fontsize=10, fontweight='bold')
+    plt.colorbar(im, ax=ax, label='effect size (0–1)', fraction=0.046, pad=0.04)
+    return ax
+
+
+def plot_tuning_vs_psv(tuning_df, psv_values, variable, comparison=None, ax=None):
+    """
+    Scatter of each neuron's tuning effect_size for one behavioral variable
+    against that neuron's across-hemisphere %shared variance (psv_W) — probes
+    whether higher-psv neurons show stronger behavioral tuning.
+
+    Parameters
+    ----------
+    tuning_df  : DataFrame from build_tuning_strength_table()
+    psv_values : array, e.g. metrics['psv']['psv_W_1'] or ['psv_W_2'], indexed
+                 the same way as the neuron's position in its '{hemi}_neuron_{i}' name
+    variable   : str, value from the 'variable' column (e.g. 'choice', 'run_speed')
+    comparison : str, optional — value from the 'comparison' column, required
+                 only if `variable` has more than one comparison (e.g. 'outcome',
+                 which has 3 pairwise comparisons)
+    ax         : matplotlib Axes, optional — created if not given
+
+    Returns
+    -------
+    ax : matplotlib Axes
+    """
+    subset = tuning_df[tuning_df['variable'] == variable]
+    if comparison is not None:
+        subset = subset[subset['comparison'] == comparison]
+    if subset['comparison'].nunique() > 1:
+        raise ValueError(
+            f"variable={variable!r} has multiple comparisons {sorted(subset['comparison'].unique())} "
+            "— pass comparison= to pick one."
+        )
+
+    neuron_idx = [int(name.rsplit('_', 1)[-1]) for name in subset['neuron']]
+    x = np.asarray(psv_values)[neuron_idx]
+    y = subset['effect_size'].to_numpy()
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 3))
+
+    ax.scatter(x, y, alpha=0.6, s=40, color='steelblue')
+    ax.set_xlabel('psv_W  (% across-hemisphere shared variance)')
+    ax.set_ylabel('effect size')
+    label = variable if comparison is None else f'{variable} ({comparison})'
+    ax.set_title(label, fontsize=10, fontweight='bold')
+    return ax
+
+
 import matplotlib.gridspec as gridspec
 
 
