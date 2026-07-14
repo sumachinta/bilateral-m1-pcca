@@ -57,6 +57,40 @@ def build_spike_count_matrices(session_data, trial_indices, reference_frames,
     return lh_matrix, rh_matrix
 
 
+def build_windowed_variable_means(session_data, trial_indices, reference_frames,
+                                    window, variable, time_step=TIME_STEP):
+    """
+    Per-trial mean of a per-frame session signal (e.g. 'run_speed'), computed
+    over the same window used by build_spike_count_matrices().
+
+    variable : str, key into session_data. Supports 1-D signals (F,) like
+        'run_speed', and 2-D per-piston signals (F, 4) like 'whisker_angle' /
+        'curvature' — for 2-D signals the mean is taken across both the window
+        frames and the 4 piston columns, giving a single "movement magnitude"
+        scalar per trial (pistons differ by trial, so no single column applies
+        to every trial).
+
+    Returns
+    -------
+    (T,) float array. NaN for a trial if its window has zero valid frames.
+    """
+    signal    = session_data[variable]
+    win_start = int(round(window[0] / time_step))
+    win_end   = int(round(window[1] / time_step))
+    n_frames  = signal.shape[0]
+    T         = len(trial_indices)
+
+    out = np.full(T, np.nan)
+    for row, trial_idx in enumerate(trial_indices):
+        ref   = int(reference_frames[trial_idx])
+        start = max(ref + win_start, 0)
+        end   = min(ref + win_end,   n_frames)
+        if end > start:
+            out[row] = signal[start:end].mean()
+
+    return out
+
+
 def _subtract_condition_means(matrix, condition_labels):
     """
     For each stimulus condition c and each neuron n, subtract the mean spike

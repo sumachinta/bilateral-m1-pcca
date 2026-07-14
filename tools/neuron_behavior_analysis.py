@@ -1,0 +1,117 @@
+import re
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+
+from .load_session import TIME_STEP
+from .input_data_generation import build_windowed_variable_means
+from .run_save_model import RESULTS_DIR
+
+CHOICE_MAP = {
+    'hit'        : 'lick',
+    'false_alarm': 'lick',
+    'miss'       : 'no_lick',
+    'correct_rej': 'no_lick',
+}
+
+
+def base_session_id(session_id):
+    """Strip a trailing '_wSTART-END' window suffix, e.g. 'P1_w0.0-1.0' -> 'P1'."""
+    return re.sub(r'_w[\d.]+-[\d.]+$', '', session_id)
+
+
+def load_saved_session(session_id, results_dir=RESULTS_DIR):
+    """
+    Load a saved session's joblib payload by exact filename.
+
+    Unlike run_save_model.load_session_results(), this does not hardcode a
+    '_w0.0-1.0' suffix, so it works for any session_id exactly as it was
+    saved (e.g. 'P1_w0.5-1.0'). Only metrics/summary/pcca_input_data are
+    needed for this analysis, so no live pcca_fa model is reconstructed.
+
+    Returns
+    -------
+    payload : dict with keys session_id, model_params, cv_results, metrics,
+        summary, pcca_input_data
+    """
+    path = Path(results_dir) / f'{session_id}.joblib'
+    if not path.exists():
+        raise FileNotFoundError(f"No saved results for session '{session_id}' at {path}")
+    return joblib.load(path)
+
+
+def get_high_psv_neuron_indices(metrics, hemisphere='LH', component='across', threshold=50.0):
+    """
+    Indices (into psv_W_*/psv_L_* and pcca_input_data['lh_raw']/['rh_raw']
+    columns) of neurons whose %shared variance exceeds threshold.
+
+    component : 'across' (psv_W, across-hemisphere shared variance) or
+        'within' (psv_L, within-hemisphere shared variance).
+    """
+    prefix = {'across': 'psv_W', 'within': 'psv_L'}[component]
+    suffix = '_1' if hemisphere == 'LH' else '_2'
+    return np.where(metrics['psv'][prefix + suffix] > threshold)[0]
+
+
+def _compute_lick_latency(derived, trial_indices, time_step=TIME_STEP):
+    """
+    Seconds from trial start to first lick, per trial. NaN if no lick
+    occurred in that trial. Generalizes the hit-only calculation in
+    data_eda.ipynb to all trials in trial_indices.
+    """
+    latency_all = (derived['trial_first_lick_frames'] - derived['trial_start_frames']) * time_step
+    return latency_all[trial_indices]
+
+
+def build_trial_variable_table(session_id, metrics, pcca_input_data, session_data, derived,
+                                hemisphere='LH', psv_component='across', psv_threshold=50.0,
+                                extra_signals=('run_speed', 'whisker_angle', 'curvature')):
+    """
+    One row per trial: spike counts (raw, within the pCCA window) for neurons
+    with high %shared-variance in this hemisphere, plus behavioral variables
+    (stimulus, choice, outcome, lick latency, and any extra_signals) aligned
+    to the same trial_indices and window used to fit pCCA-FA.
+
+    Parameters
+    ----------
+    session_id       : str, used only for error messages / provenance
+    metrics           : dict from the saved payload ('metrics')
+    pcca_input_data   : dict from the saved payload ('pcca_input_data')
+    session_data      : dict from load_session() on the raw .mat file
+    derived           : dict from compute_derived(session_data)
+    hemisphere        : 'LH' or 'RH'
+    psv_component     : 'across' or 'within' (passed to get_high_psv_neuron_indices)
+    psv_threshold     : float, % shared variance cutoff
+    extra_signals     : session_data keys to window-average via
+                         build_windowed_variable_means (e.g. 'run_speed')
+
+    Returns
+    -------
+    pandas.DataFrame, one row per trial. Neuron columns are named
+    '{hemisphere}_neuron_{i}', where i is the neuron's index into
+    metrics['psv']['psv_W_1'/'psv_W_2'/...] (so it can be traced back to its
+    %sv value).
+    """
+    hemi_key   = 'lh' if hemisphere == 'LH' else 'rh'
+    raw        = pcca_input_data[f'{hemi_key}_raw']
+    neuron_idx = get_high_psv_neuron_indices(metrics, hemisphere, psv_component, psv_threshold)
+
+    trial_indices    = pcca_input_data['trial_indices']
+    window           = pcca_input_data['window']
+    reference_frames = derived['trial_start_frames']
+
+    data = {f'{hemisphere}_neuron_{i}': raw[:, i] for i in neuron_idx}
+
+    data['stimulus']     = np.array(derived['trial_stimulus'])[trial_indices]
+    data['outcome']      = pcca_input_data['outcome_labels']
+    data['choice']       = np.array([CHOICE_MAP.get(o, 'unknown') for o in data['outcome']])
+    data['lick_latency'] = _compute_lick_latency(derived, trial_indices)
+
+    for signal in extra_signals:
+        data[signal] = build_windowed_variable_means(
+            session_data, trial_indices, reference_frames, window, signal
+        )
+
+    return pd.DataFrame(data)
