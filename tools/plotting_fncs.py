@@ -197,21 +197,29 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
     return ax
 
 
-def plot_tuning_vs_psv(tuning_df, psv_values, variable, comparison=None, ax=None):
+def plot_tuning_vs_psv(tuning_df, psv, variable, comparison=None, metrics=None, hemisphere=None, ax=None):
     """
     Scatter of each neuron's tuning effect_size for one behavioral variable
-    against that neuron's across-hemisphere %shared variance (psv_W) — probes
-    whether higher-psv neurons show stronger behavioral tuning.
+    against that neuron's %shared variance — probes whether higher-psv
+    neurons show stronger behavioral tuning.
 
     Parameters
     ----------
     tuning_df  : DataFrame from build_tuning_strength_table()
-    psv_values : array, e.g. metrics['psv']['psv_W_1'] or ['psv_W_2'], indexed
-                 the same way as the neuron's position in its '{hemi}_neuron_{i}' name
+    psv        : how to get each neuron's %shared variance:
+                 - 'across' / 'within': look it up automatically (psv_W /
+                   psv_L) via metrics= and hemisphere= (same convention as
+                   plot_tuning_heatmap's sort_by)
+                 - array-like, e.g. metrics['psv']['psv_W_1'] or ['psv_L_2'],
+                   indexed the same way as the neuron's position in its
+                   '{hemi}_neuron_{i}' name
     variable   : str, value from the 'variable' column (e.g. 'choice', 'run_speed')
     comparison : str, optional — value from the 'comparison' column, required
                  only if `variable` has more than one comparison (e.g. 'outcome',
                  which has 3 pairwise comparisons)
+    metrics    : dict, the saved payload's 'metrics' entry — required only
+                 when psv is 'across'/'within'
+    hemisphere : 'LH' or 'RH' — required only when psv is 'across'/'within'
     ax         : matplotlib Axes, optional — created if not given
 
     Returns
@@ -227,15 +235,24 @@ def plot_tuning_vs_psv(tuning_df, psv_values, variable, comparison=None, ax=None
             "— pass comparison= to pick one."
         )
 
-    neuron_idx = [int(name.rsplit('_', 1)[-1]) for name in subset['neuron']]
-    x = np.asarray(psv_values)[neuron_idx]
+    if isinstance(psv, str) and psv in ('across', 'within'):
+        if metrics is None or hemisphere not in ('LH', 'RH'):
+            raise ValueError("psv='across'/'within' requires metrics= and hemisphere='LH'/'RH'.")
+        psv_lookup = get_neuron_psv_values(metrics, hemisphere, component=psv)
+        x = np.array([psv_lookup[name] for name in subset['neuron']])
+        xlabel = f"psv_{'W' if psv == 'across' else 'L'}  (% {psv}-hemisphere shared variance)"
+    else:
+        neuron_idx = [int(name.rsplit('_', 1)[-1]) for name in subset['neuron']]
+        x = np.asarray(psv)[neuron_idx]
+        xlabel = '% shared variance'
+
     y = subset['effect_size'].to_numpy()
 
     if ax is None:
         _, ax = plt.subplots(figsize=(4, 3))
 
     ax.scatter(x, y, alpha=0.6, s=40, color='steelblue')
-    ax.set_xlabel('psv_W  (% across-hemisphere shared variance)')
+    ax.set_xlabel(xlabel)
     ax.set_ylabel('effect size')
     label = variable if comparison is None else f'{variable} ({comparison})'
     ax.set_title(label, fontsize=10, fontweight='bold')
