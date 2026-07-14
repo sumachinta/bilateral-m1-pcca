@@ -42,17 +42,32 @@ def load_saved_session(session_id, results_dir=RESULTS_DIR):
     return joblib.load(path)
 
 
-def get_high_psv_neuron_indices(metrics, hemisphere='LH', component='across', threshold=50.0):
+def _get_psv_array(metrics, hemisphere, component):
     """
-    Indices (into psv_W_*/psv_L_* and pcca_input_data['lh_raw']/['rh_raw']
-    columns) of neurons whose %shared variance exceeds threshold.
-
     component : 'across' (psv_W, across-hemisphere shared variance) or
         'within' (psv_L, within-hemisphere shared variance).
     """
     prefix = {'across': 'psv_W', 'within': 'psv_L'}[component]
     suffix = '_1' if hemisphere == 'LH' else '_2'
-    return np.where(metrics['psv'][prefix + suffix] > threshold)[0]
+    return metrics['psv'][prefix + suffix]
+
+
+def get_high_psv_neuron_indices(metrics, hemisphere='LH', component='across', threshold=50.0):
+    """
+    Indices (into psv_W_*/psv_L_* and pcca_input_data['lh_raw']/['rh_raw']
+    columns) of neurons whose %shared variance exceeds threshold.
+    """
+    return np.where(_get_psv_array(metrics, hemisphere, component) > threshold)[0]
+
+
+def get_neuron_psv_values(metrics, hemisphere='LH', component='across'):
+    """
+    {f'{hemisphere}_neuron_{i}': psv_value} for every neuron in this
+    hemisphere. Useful as `sort_by` for plotting_fncs.plot_tuning_heatmap,
+    or any other neuron-name-keyed lookup.
+    """
+    values = _get_psv_array(metrics, hemisphere, component)
+    return {f'{hemisphere}_neuron_{i}': v for i, v in enumerate(values)}
 
 
 def _compute_lick_latency(derived, trial_indices, time_step=TIME_STEP):

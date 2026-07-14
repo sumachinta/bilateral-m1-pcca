@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from .neuron_behavior_analysis import get_neuron_psv_values
+
 def plot_trial_variable(session_data, trial_start_frames, var_name='run_speed', trial_idx=1, xlim=None, ylim=None):
     """
     Plot a variable for a single trial.
@@ -115,7 +117,8 @@ def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
     return ax
 
 
-def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sort_by=None, ax=None):
+def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sort_by=None,
+                         metrics=None, ax=None):
     """
     Neuron x (variable, comparison) heatmap of tuning effect_size, from
     tools.tuning_analysis.build_tuning_strength_table(). One column per
@@ -126,21 +129,35 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
     Parameters
     ----------
     tuning_df           : DataFrame from build_tuning_strength_table()
-    hemisphere           : str, optional — used only in the plot title
+    hemisphere           : 'LH' or 'RH' — used in the plot title, and
+                            required (along with metrics) when sort_by is
+                            'across' or 'within'
     significance_alpha  : float, p-value cutoff for the significance marker
-    sort_by              : None, or dict/Series mapping neuron name (e.g.
-                            'LH_neuron_7') -> a sort key. Neurons (rows) are
-                            sorted by this value, descending, and the value
-                            is appended to each row's label — e.g. pass each
-                            neuron's psv_W to sort by %shared variance
-                            instead. If None (default), sorted by each
-                            neuron's own max effect_size across all columns.
+    sort_by              : how to order neurons (rows), descending:
+                            - None (default): each neuron's own max
+                              effect_size across all columns
+                            - 'across': psv_W, that neuron's across-
+                              hemisphere %shared variance (requires
+                              metrics= and hemisphere=)
+                            - 'within': psv_L, within-hemisphere %shared
+                              variance (requires metrics= and hemisphere=)
+                            - dict/Series mapping neuron name (e.g.
+                              'LH_neuron_7') -> any other custom sort key
+                            Except for the None case, the sort key's value
+                            is appended to each row's label.
+    metrics               : dict, the saved payload's 'metrics' entry —
+                            required only when sort_by is 'across'/'within'
     ax                    : matplotlib Axes, optional — created if not given
 
     Returns
     -------
     ax : matplotlib Axes
     """
+    if sort_by in ('across', 'within'):
+        if metrics is None or hemisphere not in ('LH', 'RH'):
+            raise ValueError("sort_by='across'/'within' requires metrics= and hemisphere='LH'/'RH'.")
+        sort_by = get_neuron_psv_values(metrics, hemisphere, component=sort_by)
+
     df = tuning_df.copy()
     df['column'] = df['variable'] + ': ' + df['comparison']
 
