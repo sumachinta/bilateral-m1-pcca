@@ -118,7 +118,7 @@ def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
 
 
 def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sort_by=None,
-                         metrics=None, ax=None):
+                         metrics=None, column_order=None, ax=None):
     """
     Neuron x (variable, comparison) heatmap of tuning effect_size, from
     tools.tuning_analysis.build_tuning_strength_table(). One column per
@@ -147,6 +147,15 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
                             is appended to each row's label.
     metrics               : dict, the saved payload's 'metrics' entry —
                             required only when sort_by is 'across'/'within'
+    column_order          : list, optional — controls left-to-right x-axis
+                            order. Each entry is either a 'variable' name
+                            (e.g. 'choice' — brings all of that variable's
+                            comparisons together, in their existing order)
+                            or an exact 'variable: comparison' column label
+                            (e.g. 'outcome: hit_vs_miss' — pins that one
+                            column). Columns/variables not mentioned are
+                            appended afterward, alphabetically. Default
+                            (None) is alphabetical, pandas' pivot default.
     ax                    : matplotlib Axes, optional — created if not given
 
     Returns
@@ -163,6 +172,20 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
 
     effect_pivot = df.pivot(index='neuron', columns='column', values='effect_size')
     p_pivot      = df.pivot(index='neuron', columns='column', values='p_value')
+
+    if column_order is not None:
+        col_variable = dict(zip(df['column'], df['variable']))
+
+        def _rank(col):
+            if col in column_order:
+                return (column_order.index(col), col)
+            if col_variable[col] in column_order:
+                return (column_order.index(col_variable[col]), col)
+            return (len(column_order), col)
+
+        ordered_cols = sorted(effect_pivot.columns, key=_rank)
+        effect_pivot = effect_pivot[ordered_cols]
+        p_pivot      = p_pivot[ordered_cols]
 
     if sort_by is None:
         order = effect_pivot.max(axis=1).sort_values(ascending=False).index
