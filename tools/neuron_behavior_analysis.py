@@ -137,3 +137,42 @@ def build_trial_variable_table(session_id, metrics, pcca_input_data, session_dat
         )
 
     return pd.DataFrame(data)
+
+
+def get_trial_latents(payload, pcca_input_data):
+    """
+    Reconstructs the fitted pCCA-FA model from payload['model_params'] and
+    runs its E-step on the preprocessed trial data (pcca_input_data['lh']/
+    ['rh'], the same matrices the model was fit on) to recover each trial's
+    latent variable values: across-hemisphere (shared by both hemispheres)
+    and within-hemisphere (private to LH / RH).
+
+    Parameters
+    ----------
+    payload          : dict from load_saved_session() (needs 'model_params')
+    pcca_input_data  : dict from the same payload ('pcca_input_data')
+
+    Returns
+    -------
+    pandas.DataFrame, one row per trial (same order as pcca_input_data),
+    columns 'z_across_0'..'z_across_{d-1}', 'z_within_LH_0'..'z_within_LH_{d1-1}',
+    'z_within_RH_0'..'z_within_RH_{d2-1}'. These can be treated exactly like
+    the neuron spike-count columns from build_trial_variable_table — pass
+    them as `neuron_cols` to tuning_analysis.build_tuning_strength_table to
+    test whether the latent trajectories themselves relate to behavior.
+    """
+    from pcca_fa_mdl import pcca_fa
+
+    model = pcca_fa()
+    model.set_params(payload['model_params'])
+    z, _ = model.estep(pcca_input_data['lh'], pcca_input_data['rh'])
+
+    data = {}
+    for i in range(z['z_mu'].shape[1]):
+        data[f'z_across_{i}'] = z['z_mu'][:, i]
+    for i in range(z['zx1_mu'].shape[1]):
+        data[f'z_within_LH_{i}'] = z['zx1_mu'][:, i]
+    for i in range(z['zx2_mu'].shape[1]):
+        data[f'z_within_RH_{i}'] = z['zx2_mu'][:, i]
+
+    return pd.DataFrame(data)
