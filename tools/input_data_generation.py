@@ -119,10 +119,14 @@ def _make_stimulus_labels(trial_outcomes):
     Derive stimulus-identity labels from trial outcomes.
 
     For both unilateral and bilateral mice:
-      hit + miss  → 'go'   (Go stimulus was presented, animal licked or not)
-      correct_rej → 'nogo' (NoGo stimulus was presented, correctly withheld)
+      hit + miss                → 'go'   (Go stimulus was presented, animal licked or not)
+      correct_rej + false_alarm → 'nogo' (NoGo stimulus was presented, animal withheld or incorrectly licked)
 
-    False alarms are excluded from the primary analysis so not handled here.
+    Grouped by the physical stimulus that was actually presented, not by
+    choice — a false alarm is still a NoGo-stimulus trial, just an incorrect
+    response to it, so it belongs with correct_rej here (this label feeds
+    condition-mean subtraction, which should remove stimulus-driven mean
+    differences, not choice-driven ones).
     Extend this function if you have finer-grained stimulus coding in your data
     (e.g. which specific whisker pair for bilateral mice).
     """
@@ -130,10 +134,10 @@ def _make_stimulus_labels(trial_outcomes):
     for i, outcome in enumerate(trial_outcomes):
         if outcome in ('hit', 'miss'):
             labels[i] = 'go'
-        elif outcome == 'correct_rej':
+        elif outcome in ('correct_rej', 'false_alarm'):
             labels[i] = 'nogo'
         else:
-            labels[i] = 'other'   # false_alarm or unknown
+            labels[i] = 'other'   # unknown
     return labels
 
 

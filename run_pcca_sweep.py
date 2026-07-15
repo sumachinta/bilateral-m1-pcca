@@ -4,14 +4,14 @@ matplotlib.use('Agg')  # non-interactive backend; suppresses plt.show()
 import numpy as np
 import matplotlib.pyplot as plt
 
-from tools.load_session import load_session, TIME_STEP
+from tools.load_session import load_session
 from tools.trial_epoching import compute_derived
 from tools.input_data_generation import prepare_session_for_pcca
 from tools.run_save_model import fit_session_pcca, extract_session_metrics, save_session_results
 from tools.plotting_fncs import plot_session_metrics
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-SESSION_IDS = ['U1', 'U8']#['P5', 'P6', 'P11', 'P12', 'P14', 'U1', 'U2', 'U3', 'U5', 'U7', 'U8']          # 'P1', 'P2', 'P3', 'P4', 
+SESSION_IDS = ['P3']#,'P3','P4', 'P5', 'P6', 'P11', 'P12', 'P14', 'U1', 'U2', 'U3', 'U5', 'U7', 'U8']          # 'P1', 'P2', 'P3', 'P4',
 WINDOWS     = [(0.0, 1.0)]#, (0.0, 0.5), (0.5, 1.0)]
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -24,23 +24,15 @@ for session_id in SESSION_IDS:
         session_data = load_session(f'data/{session_id}.mat')
         derived      = compute_derived(session_data)
 
-        # lick latency on hit trials (needed for the fast-lick filter below)
-        reference_frames = derived['trial_start_frames']
-        hit_mask         = np.array([o == 'hit' for o in derived['trial_outcome']])
-        lick_latency_s   = (
-            derived['trial_first_lick_frames'][hit_mask] - reference_frames[hit_mask]
-        ) * TIME_STEP
-
-        # trial filtering: hits with lick > 1 s, misses, correct rejections; valid stimuli only
+        # trial filtering: hits, misses, correct rejections, false alarms; valid stimuli only
         stim_valid_mask  = np.array([s != 'none' for s in derived['trial_stimulus']])
+        hit_mask         = np.array([o == 'hit'         for o in derived['trial_outcome']])
         miss_mask        = np.array([o == 'miss'        for o in derived['trial_outcome']])
         correct_rej_mask = np.array([o == 'correct_rej' for o in derived['trial_outcome']])
-
-        hit_fast_lick_mask          = hit_mask.copy()
-        hit_fast_lick_mask[hit_mask] = lick_latency_s > 1.0
+        false_alarm_mask = np.array([o == 'false_alarm' for o in derived['trial_outcome']])
 
         filtered_trial_indices = np.where(
-            (hit_fast_lick_mask | miss_mask | correct_rej_mask) & stim_valid_mask
+            (hit_mask | miss_mask | correct_rej_mask | false_alarm_mask) & stim_valid_mask
         )[0]
         print(f'Filtered trials: {len(filtered_trial_indices)}')
 
