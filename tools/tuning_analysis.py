@@ -102,9 +102,21 @@ def build_tuning_strength_table(df, neuron_cols, categorical_specs, continuous_v
     ----------
     df                 : DataFrame from build_trial_variable_table()
     neuron_cols        : list of spike-count column names to score
-    categorical_specs  : list of (column_name, variable_label) pairs, e.g.
-                          [('stim_group', 'stimulus'), ('choice', 'choice'),
-                           ('outcome', 'outcome')]
+    categorical_specs  : list of (column_name, variable_label, categories)
+                          triples, e.g.
+                          [('stim_group', 'stimulus', None),
+                           ('stimulus', 'stimulus_unilateral', unilateral_stimuli),
+                           ('stimulus', 'stimulus_bilateral', bilateral_stimuli),
+                           ('choice', 'choice', None),
+                           ('outcome', 'outcome', None)]
+                          `categories=None` compares every level present in
+                          that column; pass a list to restrict/order which
+                          levels are compared — e.g. the two rows above reuse
+                          the full 'stimulus' column (8 identities) but each
+                          restrict the pairwise comparison to just the 4
+                          unilateral (or bilateral) identities, so you get
+                          within-group discriminability instead of only the
+                          pooled unilateral-vs-bilateral comparison.
     continuous_vars    : list of continuous column names, e.g.
                           ['run_speed', 'whisker_angle', 'curvature', 'lick_latency']
     categorical_metric_fn, continuous_metric_fn : pluggable metric_fn
@@ -122,8 +134,9 @@ def build_tuning_strength_table(df, neuron_cols, categorical_specs, continuous_v
 
     rows = []
     for neuron_col in neuron_cols:
-        for column_name, variable_label in categorical_specs:
-            pairs = compute_categorical_pairs(df, neuron_col, column_name, metric_fn=categorical_metric_fn)
+        for column_name, variable_label, categories in categorical_specs:
+            pairs = compute_categorical_pairs(df, neuron_col, column_name, categories=categories,
+                                               metric_fn=categorical_metric_fn)
             for _, pair_row in pairs.iterrows():
                 rows.append({
                     'neuron': neuron_col,
