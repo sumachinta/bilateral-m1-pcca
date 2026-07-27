@@ -1,3 +1,5 @@
+import re
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -118,7 +120,7 @@ def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
 
 
 def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sort_by=None,
-                         metrics=None, column_order=None, ax=None):
+                         metrics=None, column_order=None, row_order=None, ax=None):
     """
     Neuron x (variable, comparison) heatmap of tuning effect_size, from
     tools.tuning_analysis.build_tuning_strength_table(). One column per
@@ -156,6 +158,16 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
                             column). Columns/variables not mentioned are
                             appended afterward, alphabetically. Default
                             (None) is alphabetical, pandas' pivot default.
+    row_order             : list, optional — fixes row order by neuron-name
+                            prefix instead of sorting by effect_size/sort_by,
+                            e.g. ['z_across', 'z_within_RH', 'z_within_LH']
+                            groups all 'z_across_*' rows first, then all
+                            'z_within_RH_*', then 'z_within_LH_*' — each
+                            group internally ordered by its trailing integer
+                            (so 'z_across_2' comes before 'z_across_10').
+                            Rows not matching any prefix are appended after,
+                            in the same natural order. Takes precedence over
+                            sort_by when given.
     ax                    : matplotlib Axes, optional — created if not given
 
     Returns
@@ -187,7 +199,20 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
         effect_pivot = effect_pivot[ordered_cols]
         p_pivot      = p_pivot[ordered_cols]
 
-    if sort_by is None:
+    if row_order is not None:
+        def _natural_suffix(name):
+            m = re.search(r'(\d+)$', name)
+            return (name[:m.start()], int(m.group(1))) if m else (name, -1)
+
+        def _row_rank(name):
+            for i, prefix in enumerate(row_order):
+                if name == prefix or name.startswith(prefix):
+                    return (i, _natural_suffix(name))
+            return (len(row_order), _natural_suffix(name))
+
+        order = sorted(effect_pivot.index, key=_row_rank)
+        row_labels = list(order)
+    elif sort_by is None:
         order = effect_pivot.max(axis=1).sort_values(ascending=False).index
         row_labels = list(order)
     else:
