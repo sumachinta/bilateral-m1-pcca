@@ -34,6 +34,36 @@ HEATMAP_COLUMN_ORDER = [
     'run_speed', 'whisker_angle', 'curvature',
 ]
 
+# Shorthand x-axis labels for plot_tuning_heatmap's column_labels=. Keys are
+# the full 'variable: comparison' column names built by build_tuning_strength_table();
+# edit the values freely, this is just a plain dict.
+HEATMAP_COLUMN_LABELS = {
+    'choice: lick_vs_no_lick': 'Lick vs no-lick',
+    'outcome: correct_rej_vs_false_alarm': 'CR vs FA',
+    'outcome: correct_rej_vs_hit': 'CR vs Hit',
+    'outcome: correct_rej_vs_miss': 'CR vs Miss',
+    'outcome: false_alarm_vs_hit': 'FA vs Hit',
+    'outcome: false_alarm_vs_miss': 'FA vs Miss',
+    'outcome: hit_vs_miss': 'Hit vs Miss',
+    'lick_latency: all': 'Lick latency',
+    'run_speed: all': 'Run speed',
+    'whisker_angle: all': 'Whisker angle',
+    'curvature: all': 'Curvature',
+    'stimulus: bilateral_vs_unilateral': 'Bilateral vs unilateral',
+    'stimulus_unilateral: rightC_vs_rightD': 'RC vs RD',
+    'stimulus_unilateral: rightC_vs_leftC': 'RC vs LC',
+    'stimulus_unilateral: rightC_vs_leftD': 'RC vs LD',
+    'stimulus_unilateral: rightD_vs_leftC': 'RD vs LC',
+    'stimulus_unilateral: rightD_vs_leftD': 'RD vs LD',
+    'stimulus_unilateral: leftC_vs_leftD': 'LC vs LD',
+    'stimulus_bilateral: rightC+leftC_vs_rightC+leftD': 'RC+LC vs RC+LD',
+    'stimulus_bilateral: rightC+leftC_vs_rightD+leftC': 'RC+LC vs RD+LC',
+    'stimulus_bilateral: rightC+leftC_vs_rightD+leftD': 'RC+LC vs RD+LD',
+    'stimulus_bilateral: rightC+leftD_vs_rightD+leftC': 'RC+LD vs RD+LC',
+    'stimulus_bilateral: rightC+leftD_vs_rightD+leftD': 'RC+LD vs RD+LD',
+    'stimulus_bilateral: rightD+leftC_vs_rightD+leftD': 'RD+LC vs RD+LD',
+}
+
 OUTCOME_COMPARISONS = [
     'correct_rej_vs_false_alarm', 'correct_rej_vs_hit', 'correct_rej_vs_miss',
     'false_alarm_vs_hit', 'false_alarm_vs_miss', 'hit_vs_miss',

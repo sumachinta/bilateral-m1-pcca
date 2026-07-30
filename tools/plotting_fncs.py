@@ -120,7 +120,7 @@ def plot_neuron_vs_continuous(df, neuron_col, signal_col, ax=None):
 
 
 def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sort_by=None,
-                         metrics=None, column_order=None, row_order=None, ax=None):
+                         metrics=None, column_order=None, column_labels=None, row_order=None, ax=None):
     """
     Neuron x (variable, comparison) heatmap of tuning effect_size, from
     tools.tuning_analysis.build_tuning_strength_table(). One column per
@@ -149,15 +149,19 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
                             is appended to each row's label.
     metrics               : dict, the saved payload's 'metrics' entry —
                             required only when sort_by is 'across'/'within'
-    column_order          : list, optional — controls left-to-right x-axis
-                            order. Each entry is either a 'variable' name
-                            (e.g. 'choice' — brings all of that variable's
-                            comparisons together, in their existing order)
-                            or an exact 'variable: comparison' column label
-                            (e.g. 'outcome: hit_vs_miss' — pins that one
-                            column). Columns/variables not mentioned are
-                            appended afterward, alphabetically. Default
-                            (None) is alphabetical, pandas' pivot default.
+    column_order          : list, optional — which columns to plot, and in
+                            what left-to-right order. Each entry is either a
+                            'variable' name (e.g. 'choice' — brings in all of
+                            that variable's comparisons, in their existing
+                            order) or an exact 'variable: comparison' column
+                            label (e.g. 'outcome: hit_vs_miss' — pins that
+                            one column). Only columns matching some entry are
+                            plotted — anything else is dropped. Default
+                            (None) keeps every column, alphabetically
+                            (pandas' pivot default).
+    column_labels         : dict, optional — {full 'variable: comparison'
+                            label -> shorthand}, used for x-axis tick labels.
+                            Columns not in the dict keep their full label.
     row_order             : list, optional — fixes row order by neuron-name
                             prefix instead of sorting by effect_size/sort_by,
                             e.g. ['z_across', 'z_within_RH', 'z_within_LH']
@@ -187,15 +191,8 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
 
     if column_order is not None:
         col_variable = dict(zip(df['column'], df['variable']))
-
-        def _rank(col):
-            if col in column_order:
-                return (column_order.index(col), col)
-            if col_variable[col] in column_order:
-                return (column_order.index(col_variable[col]), col)
-            return (len(column_order), col)
-
-        ordered_cols = sorted(effect_pivot.columns, key=_rank)
+        ordered_cols = [col for entry in column_order for col in effect_pivot.columns
+                        if col == entry or col_variable[col] == entry]
         effect_pivot = effect_pivot[ordered_cols]
         p_pivot      = p_pivot[ordered_cols]
 
@@ -230,7 +227,9 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
 
     im = ax.imshow(effect_pivot.to_numpy(), aspect='auto', cmap='viridis', vmin=0, vmax=1)
     ax.set_xticks(range(effect_pivot.shape[1]))
-    ax.set_xticklabels(effect_pivot.columns, rotation=45, ha='right', fontsize=8)
+    xtick_labels = effect_pivot.columns if column_labels is None \
+        else [column_labels.get(col, col) for col in effect_pivot.columns]
+    ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=8)
     ax.set_yticks(range(effect_pivot.shape[0]))
     ax.set_yticklabels(row_labels, fontsize=7)
 

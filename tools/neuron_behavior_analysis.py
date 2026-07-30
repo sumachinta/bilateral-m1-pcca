@@ -139,6 +139,56 @@ def build_trial_variable_table(session_id, metrics, pcca_input_data, session_dat
     return pd.DataFrame(data)
 
 
+def attach_temporal_psv_columns(discrim_df, session_id, results_dir=RESULTS_DIR):
+    """
+    Adds 'psv_across'/'psv_within' columns to a long-format temporal
+    discriminability table (tools.temporal_decoding.run_all_neurons output),
+    whose 'neuron' column is named '{hemisphere}_neuron_{i}' with i indexing
+    ALL neurons in that hemisphere (see tools.temporal_profile.
+    build_binned_spike_tensor) — a different index space than metrics['psv'],
+    which is indexed only over the subset kept after the pCCA-FA fit's
+    fsrs/rate filtering. This uses the saved fit's lh_neuron_mask/
+    rh_neuron_mask to place each kept neuron's psv value back at its correct
+    all-neuron position; neurons excluded from the fit get NaN.
+
+    Parameters
+    ----------
+    discrim_df  : DataFrame with a 'neuron' column as above
+    session_id  : base session id (e.g. 'U2'); looks up
+                  '{session_id}_w0.0-1.0', the window used for the pCCA-FA fit
+
+    Returns
+    -------
+    A copy of discrim_df with 'psv_across'/'psv_within' columns added.
+    """
+    payload         = load_saved_session(f'{session_id}_w0.0-1.0', results_dir=results_dir)
+    metrics         = payload['metrics']
+    pcca_input_data = payload['pcca_input_data']
+
+    def psv_lookup(hemisphere):
+        neuron_mask = pcca_input_data[f'{hemisphere.lower()}_neuron_mask']
+        suffix = '_1' if hemisphere == 'LH' else '_2'
+        psv_across = np.full(len(neuron_mask), np.nan)
+        psv_within = np.full(len(neuron_mask), np.nan)
+        psv_across[neuron_mask] = metrics['psv']['psv_W' + suffix]
+        psv_within[neuron_mask] = metrics['psv']['psv_L' + suffix]
+        return psv_across, psv_within
+
+    lh_across, lh_within = psv_lookup('LH')
+    rh_across, rh_within = psv_lookup('RH')
+
+    def get_psv(neuron_name):
+        hemisphere, idx = neuron_name.split('_neuron_')
+        idx = int(idx)
+        return (lh_across[idx], lh_within[idx]) if hemisphere == 'LH' else (rh_across[idx], rh_within[idx])
+
+    discrim_df = discrim_df.copy()
+    psv_values = discrim_df['neuron'].apply(get_psv)
+    discrim_df['psv_across'] = psv_values.apply(lambda t: t[0])
+    discrim_df['psv_within'] = psv_values.apply(lambda t: t[1])
+    return discrim_df
+
+
 def get_trial_latents(payload, pcca_input_data):
     """
     Reconstructs the fitted pCCA-FA model from payload['model_params'] and

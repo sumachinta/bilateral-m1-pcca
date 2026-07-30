@@ -11,7 +11,7 @@ from tools.run_save_model import fit_session_pcca, extract_session_metrics, save
 from tools.plotting_fncs import plot_session_metrics
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-SESSION_IDS = ['P3']#,'P3','P4', 'P5', 'P6', 'P11', 'P12', 'P14', 'U1', 'U2', 'U3', 'U5', 'U7', 'U8']          # 'P1', 'P2', 'P3', 'P4',
+SESSION_IDS = ['U5','P6', 'U7','P11', 'P12', 'P14','U8']          # ['U1','P2','U2','P3','U3','P4', 'P5', 'U5','P6', 'U7','P11', 'P12', 'P14','U8'] 
 WINDOWS     = [(0.0, 1.0)]#, (0.0, 0.5), (0.5, 1.0)]
 # ──────────────────────────────────────────────────────────────────────────────
 
