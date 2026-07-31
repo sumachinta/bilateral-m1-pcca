@@ -178,7 +178,7 @@ def plot_tuning_heatmap(tuning_df, hemisphere=None, significance_alpha=0.05, sor
     -------
     ax : matplotlib Axes
     """
-    if sort_by in ('across', 'within'):
+    if isinstance(sort_by, str) and sort_by in ('across', 'within'):
         if metrics is None or hemisphere not in ('LH', 'RH'):
             raise ValueError("sort_by='across'/'within' requires metrics= and hemisphere='LH'/'RH'.")
         sort_by = get_neuron_psv_values(metrics, hemisphere, component=sort_by)
