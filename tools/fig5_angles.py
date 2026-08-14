@@ -178,3 +178,124 @@ def session_level_table(angle_df):
     g = (angle_df.groupby(['session', 'group'])['theta']
          .mean().reset_index().rename(columns={'theta': 'theta_mean'}))
     return g.sort_values(['group', 'session']).reset_index(drop=True)
+
+
+# ===========================================================================
+# Supplementary Figure 6  --  how much shared variance each pattern captures
+# ("eigenspectrum"). Justifies analysing only the TOP co-fluctuation pattern.
+# Ports of plot_figureS6.ipynb.
+# ===========================================================================
+def _canonical_directions(model_params):
+    """Across-area canonical directions for both areas (port of the math in
+    pcca_fa_mdl.get_canonical_directions). Reimplemented here so the module has
+    no dependency on the model class. Returns (dirs_x1, dirs_x2, d)."""
+    W_1, W_2 = model_params['W_1'], model_params['W_2']
+    L_1, L_2 = model_params['L_1'], model_params['L_2']
+    psi_1, psi_2 = model_params['psi_1'], model_params['psi_2']
+    d = int(model_params['d'])
+
+    cov1 = W_1 @ W_1.T + L_1 @ L_1.T + np.diag(psi_1)
+    cov2 = W_2 @ W_2.T + L_2 @ L_2.T + np.diag(psi_2)
+    crosscov = W_1 @ W_2.T
+    inv1 = slin.inv(slin.sqrtm(cov1))
+    inv2 = slin.inv(slin.sqrtm(cov2))
+    K = inv1 @ crosscov @ inv2
+    u, _, vt = slin.svd(K)
+    dirs_x1 = np.real(inv1 @ u[:, :d])
+    dirs_x2 = np.real(inv2 @ vt[:d, :].T)
+    return dirs_x1, dirs_x2, d
+
+
+def across_variance_spectrum(model_params):
+    """Proportion of ACROSS-area shared variance captured by each across-area
+    pattern (canonical direction), per area. Each returned array sums to 1 and
+    is ordered by canonical correlation. Port of plot_figureS6 cell 2."""
+    dirs_x1, dirs_x2, d = _canonical_directions(model_params)
+    out = []
+    for dirs, W in ((dirs_x1, model_params['W_1']), (dirs_x2, model_params['W_2'])):
+        nd = dirs / slin.norm(dirs, axis=0)
+        v = np.array([nd[:, j].T @ (W @ W.T) @ nd[:, j] for j in range(d)])
+        out.append(v / v.sum())
+    return out[0], out[1]
+
+
+def within_variance_spectrum(model_params):
+    """Proportion of WITHIN-area shared variance captured by each within-area
+    pattern, per area. Ordered by shared variance; empty array if that area's
+    within-dim is 0. Port of plot_figureS6 cell 3."""
+    out = []
+    for L, dd in ((model_params['L_1'], int(model_params['d1'])),
+                  (model_params['L_2'], int(model_params['d2']))):
+        if dd == 0 or np.linalg.norm(L) == 0:
+            out.append(np.array([]))
+            continue
+        vals = slin.svdvals(L @ L.T)
+        total = np.trace(L @ L.T)
+        out.append(vals[:dd] / total)
+    return out[0], out[1]
+
+
+def build_variance_spectrum_table(results_dir, window_suffix='_w0.0-1.0'):
+    """Long table: session, group, area, hemisphere, component ('across'/
+    'within'), rank (1-based pattern index), prop_sv (fraction, 0..1)."""
+    import joblib
+
+    files = sorted(glob.glob(os.path.join(results_dir, '*{}.joblib'.format(window_suffix))))
+    rows = []
+    for f in files:
+        sid = session_id_from_path(f)
+        grp = group_from_session(sid)
+        mp = joblib.load(f)['model_params']
+        ax1, ax2 = across_variance_spectrum(mp)
+        wn1, wn2 = within_variance_spectrum(mp)
+        for hemi, area, ax_sp, wn_sp in (('LH', 1, ax1, wn1), ('RH', 2, ax2, wn2)):
+            for r, v in enumerate(ax_sp, start=1):
+                rows.append(dict(session=sid, group=grp, hemisphere=hemi, area=area,
+                                 component='across', rank=r, prop_sv=float(v)))
+            for r, v in enumerate(wn_sp, start=1):
+                rows.append(dict(session=sid, group=grp, hemisphere=hemi, area=area,
+                                 component='within', rank=r, prop_sv=float(v)))
+    return pd.DataFrame(rows)
+
+
+# ===========================================================================
+# Supplementary Figure 7  --  weight diversity of the top co-fluctuation
+# pattern. % of top-pattern weights that are positive:  ~50% = diverse
+# (mixed sign, structured);  ~100% = low diversity (global on/off).
+# Ports of get_top_vec / plot_figureS7.ipynb.
+# ===========================================================================
+def top_vec_pct_positive(loadings):
+    """% of the top pattern's weights that share the majority sign (>=50).
+
+    Mirrors dual_pfc_funcs.get_top_vec: orthonormalize, take leading vector,
+    flip so most weights are positive, return that positive fraction * 100.
+    Returns np.nan when the pattern is undefined (empty / zero loadings)."""
+    if not _has_pattern(loadings):
+        return np.nan
+    vec = top_pattern(loadings)
+    n = len(vec)
+    pct_pos = (vec >= 0).sum() / n
+    if pct_pos < 0.5:
+        pct_pos = 1 - pct_pos
+    return pct_pos * 100.0
+
+
+def build_weight_diversity_table(results_dir, window_suffix='_w0.0-1.0'):
+    """Long table: session, group, hemisphere, pct_pos_across, pct_pos_within.
+
+    pct_pos_* is the % of the top across-/within-area pattern's weights that
+    are the majority sign (the paper's weight-diversity readout)."""
+    import joblib
+
+    files = sorted(glob.glob(os.path.join(results_dir, '*{}.joblib'.format(window_suffix))))
+    rows = []
+    for f in files:
+        sid = session_id_from_path(f)
+        grp = group_from_session(sid)
+        mp = joblib.load(f)['model_params']
+        for hemi, W, L in (('LH', mp['W_1'], mp['L_1']), ('RH', mp['W_2'], mp['L_2'])):
+            rows.append(dict(session=sid, group=grp, hemisphere=hemi,
+                             pct_pos_across=top_vec_pct_positive(W),
+                             pct_pos_within=top_vec_pct_positive(L)))
+    df = pd.DataFrame(rows)
+    return df.sort_values(['group', 'session', 'hemisphere']).reset_index(drop=True)
